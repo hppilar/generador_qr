@@ -135,11 +135,6 @@ if archivo:
     preview.paste(qr_img, ((w_px - qr_size_px) // 2, current_y))
     current_y += qr_size_px + 5
 
-    # SKU
-    sku_w = draw.textlength(sku, font=font_sku)
-    draw.text(((w_px - sku_w) // 2, current_y), sku, font=font_sku, fill=(0,0,0))
-    current_y += font_sku.getsize(sku)[1] + 4
-    
     # Nombre centrado (ajustar a varias líneas si hace falta)
     try:
         font_nombre = ImageFont.truetype("DejaVuSans-Bold.ttf", font_size_nombre)
@@ -150,7 +145,6 @@ if archivo:
     except Exception:
         font_sku = ImageFont.load_default()
 
- 
     # dibujar nombre con wrap
     def draw_centered_wrapped_text(img_draw, text, x_center, y_start, font, max_width):
         words = text.split()
@@ -178,6 +172,10 @@ if archivo:
     h_name = draw_centered_wrapped_text(draw, nombre, w_px//2, current_y, font_nombre, max_text_w)
     current_y += h_name + 3
 
+    # SKU
+    sku_w = draw.textlength(sku, font=font_sku)
+    draw.text(((w_px - sku_w) // 2, current_y), sku, font=font_sku, fill=(0,0,0))
+    current_y += font_sku.getsize(sku)[1] + 4
 
     # Código de barras preview (si disponible y barcode lib instalada)
     if codigo_barra and BARCODE_AVAILABLE:
@@ -306,16 +304,16 @@ if archivo:
             # Dibujamos nombre y sku en la parte central-baja
             text_block_y = qr_y - (8 * mm)
 
-            # SKU
-            p_sku = Paragraph(sku, estilo_sku)
-            p_w2, p_h2 = p_sku.wrap(ancho_pt - (6 * mm), 50*mm)
-            p_sku.drawOn(c, x_pt + (ancho_pt - p_w2) / 2, text_block_y - p_h - p_h2 - (2 * mm))
-            
             # Nombre (Paragraph)
             p_nombre = Paragraph(nombre, estilo_nombre)
             p_w, p_h = p_nombre.wrap(ancho_pt - (6 * mm), 100*mm)
             # colocamos el bloque centrado, si p_h es demasiado grande se irá a varias lineas
             p_nombre.drawOn(c, x_pt + (ancho_pt - p_w) / 2, text_block_y - p_h)
+
+            # SKU (debajo del nombre)
+            p_sku = Paragraph(sku, estilo_sku)
+            p_w2, p_h2 = p_sku.wrap(ancho_pt - (6 * mm), 50*mm)
+            p_sku.drawOn(c, x_pt + (ancho_pt - p_w2) / 2, text_block_y - p_h - p_h2 - (2 * mm))
 
             # Código de barras en la parte inferior de la etiqueta (si código disponible)
             if codigo_barra and BARCODE_AVAILABLE:
@@ -368,6 +366,4 @@ if archivo:
         )
 
 st.markdown("---")
-st.caption("Diseñado por NAN — Personalizá el diseño modificando las opciones.")
-
-
+st.caption("Generado con ❤️ — Personalizá el diseño modificando las opciones.")
