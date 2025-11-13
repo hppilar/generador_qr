@@ -10,7 +10,24 @@ from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.platypus import Paragraph
 from reportlab.lib.enums import TA_CENTER
 from PIL import Image
+from reportlab.lib.styles import ParagraphStyle
 import os
+
+estilo_nombre = ParagraphStyle(
+    "nombre",
+    fontName="Helvetica-Bold",
+    fontSize=max(8, min(14, ancho_etiqueta / 5)),  # 🔠 tamaño dinámico
+    alignment=TA_CENTER,
+    leading=12,
+)
+
+estilo_sku = ParagraphStyle(
+    "sku",
+    fontName="Helvetica",
+    fontSize=max(6, min(10, ancho_etiqueta / 7)),  # 🔡 más chico
+    alignment=TA_CENTER,
+    leading=10,
+)
 
 # ----------------- CONFIGURACIÓN -----------------
 st.set_page_config(page_title="Generador de etiquetas QR", layout="centered")
@@ -140,11 +157,15 @@ if archivo:
                 height=qr_size_mm * mm
             )
 
-            # Texto centrado (Nombre + SKU)
-            texto_html = f"<b>{nombre}</b><br/>{sku}"
-            p = Paragraph(texto_html, estilo)
-            p_width, p_height = p.wrap(ancho_etiqueta * mm - 10, 30)
-            p.drawOn(c, x + (ancho_etiqueta * mm - p_width) / 2, y + 5)
+            # --- DIBUJAR SKU (debajo del nombre) ---
+            p_sku = Paragraph(sku, estilo_sku)
+            p_w2, p_h2 = p_sku.wrap(ancho_etiqueta * mm - 10, alto_etiqueta * mm)
+            p_sku.drawOn(c, x + (ancho_etiqueta * mm - p_w2) / 2, y + 10 + p_h + 2)
+            
+            # --- DIBUJAR NOMBRE ---
+            p_nombre = Paragraph(nombre, estilo_nombre)
+            p_w, p_h = p_nombre.wrap(ancho_etiqueta * mm - 10, alto_etiqueta * mm)
+            p_nombre.drawOn(c, x + (ancho_etiqueta * mm - p_w) / 2, y + 10)
 
             # Siguiente posición
             x_pos += 1
@@ -168,5 +189,6 @@ if archivo:
 
 st.markdown("---")
 st.caption("Desarrollado por NAN — Generador de etiquetas QR automatizadas")
+
 
 
