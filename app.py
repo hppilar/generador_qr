@@ -367,4 +367,5 @@ if archivo:
         )
 
 st.markdown("---")
-st.caption("Generado con ❤️ — Personalizá el diseño modificando las opciones.")
+st.caption("Diseñado por NAN — Personalizá el diseño modificando las opciones.")
+
