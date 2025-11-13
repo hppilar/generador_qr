@@ -108,14 +108,14 @@ def generate_barcode_image(code_str, target_width_px):
             data = numeric[-12:] if len(numeric) >= 12 else numeric.zfill(12)
             ean = barcode.get("ean13", data, writer=ImageWriter())
             bp = BytesIO()
-            ean.write(bp, {"module_height": 10.0, "font_size": 10, "text_distance": 1.0})
+            ean.write(bp, {"module_height": 10.0, "font_size": 10, "text_distance": 3.0})
             bp.seek(0)
             img = Image.open(bp).convert("RGB")
         else:
             # fallback a code128 (acepta cualquier)
             code128 = barcode.get("code128", code_str, writer=ImageWriter())
             bp = BytesIO()
-            code128.write(bp, {"module_height": 10.0, "font_size": 10, "text_distance": 1.0})
+            code128.write(bp, {"module_height": 10.0, "font_size": 10, "text_distance": 3.0})
             bp.seek(0)
             img = Image.open(bp).convert("RGB")
         # redimensionar manteniendo razón hasta target_width_px
@@ -275,3 +275,4 @@ else:
 if not BARCODE_AVAILABLE:
     st.info("La librería 'python-barcode' no está instalada: los códigos de barra no se generarán. "
             "Añadila a requirements.txt si querés esa función.")
+
