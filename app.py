@@ -135,6 +135,11 @@ if archivo:
     preview.paste(qr_img, ((w_px - qr_size_px) // 2, current_y))
     current_y += qr_size_px + 5
 
+    # SKU
+    sku_w = draw.textlength(sku, font=font_sku)
+    draw.text(((w_px - sku_w) // 2, current_y), sku, font=font_sku, fill=(0,0,0))
+    current_y += font_sku.getsize(sku)[1] + 4
+    
     # Nombre centrado (ajustar a varias líneas si hace falta)
     try:
         font_nombre = ImageFont.truetype("DejaVuSans-Bold.ttf", font_size_nombre)
@@ -145,10 +150,6 @@ if archivo:
     except Exception:
         font_sku = ImageFont.load_default()
 
-    # SKU
-    sku_w = draw.textlength(sku, font=font_sku)
-    draw.text(((w_px - sku_w) // 2, current_y), sku, font=font_sku, fill=(0,0,0))
-    current_y += font_sku.getsize(sku)[1] + 4
  
     # dibujar nombre con wrap
     def draw_centered_wrapped_text(img_draw, text, x_center, y_start, font, max_width):
@@ -368,4 +369,5 @@ if archivo:
 
 st.markdown("---")
 st.caption("Diseñado por NAN — Personalizá el diseño modificando las opciones.")
+
 
