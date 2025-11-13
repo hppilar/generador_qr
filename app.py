@@ -78,8 +78,8 @@ if archivo:
     from PIL import ImageDraw, ImageFont
     draw = ImageDraw.Draw(etiqueta_img)
     font = ImageFont.load_default()
-    draw.text((etiqueta_img.width/2, draw_y), nombre[:40], fill=(0, 0, 0), anchor="mm")
     draw.text((etiqueta_img.width/2, draw_y + 20), sku, fill=(0, 0, 0), anchor="mm")
+    draw.text((etiqueta_img.width/2, draw_y), nombre[:40], fill=(0, 0, 0), anchor="mm")
 
     st.image(etiqueta_img, caption="Vista previa de etiqueta", use_container_width=False)
 
@@ -168,4 +168,5 @@ if archivo:
 
 st.markdown("---")
 st.caption("Desarrollado por NAN — Generador de etiquetas QR automatizadas")
+
 
