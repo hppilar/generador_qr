@@ -1,192 +1,151 @@
 import streamlit as st
 import pandas as pd
 from io import BytesIO
+from PIL import Image, ImageDraw, ImageFont
 import qrcode
 from reportlab.lib.pagesizes import A4
-from reportlab.lib.units import mm
 from reportlab.pdfgen import canvas
+from reportlab.lib.units import mm
 from reportlab.lib.utils import ImageReader
-from PIL import Image, ImageDraw, ImageFont
-import barcode
-from barcode.writer import ImageWriter
-import tempfile
+import math
 import os
 
-# --- CONFIGURACIÓN DE LA APP ---
+# --- CONFIGURACIÓN GENERAL ---
 st.set_page_config(page_title="Generador de etiquetas QR", layout="centered")
-st.title("📦 Generador de etiquetas con QR, Logo y Código de Barras")
+st.title("🏷️ Generador de etiquetas QR con logo")
+
+LOGO_PATH = "logo.png"  # logo fijo en la carpeta
+
+if not os.path.exists(LOGO_PATH):
+    st.error("⚠️ No se encontró el archivo logo.png en la carpeta del proyecto.")
+else:
+    st.image(LOGO_PATH, width=120)
 
 st.markdown("""
-Subí un archivo Excel con las siguientes columnas:
+Subí tu archivo Excel con las columnas:
 - **sku**
 - **nombre**
-- **url** (dirección web a enlazar)
-- **codigo_barras** (número secuencial o código EAN13 válido)
+- **url**
 """)
 
-# --- ARCHIVO DE LOGO ---
-logo_file = st.file_uploader("📷 Subí el logo (formato PNG o JPG)", type=["png", "jpg", "jpeg"])
+archivo = st.file_uploader("📄 Cargar archivo Excel", type=["xlsx"])
 
-# --- ARCHIVO DE EXCEL ---
-archivo = st.file_uploader("📄 Subí tu archivo Excel", type=["xlsx"])
+# --- PARÁMETROS DE ETIQUETA ---
+st.sidebar.header("⚙️ Configuración de etiqueta")
+ancho_mm = st.sidebar.number_input("Ancho (mm)", 40, 150, 60, 5)
+alto_mm = st.sidebar.number_input("Alto (mm)", 40, 150, 80, 5)
 
-# --- CONFIGURACIÓN DE TAMAÑOS ---
-st.sidebar.header("⚙️ Configuración de etiqueta (en mm)")
-ancho_etiqueta = st.sidebar.number_input("Ancho de etiqueta", min_value=40.0, max_value=150.0, value=60.0, step=5.0)
-alto_etiqueta = st.sidebar.number_input("Alto de etiqueta", min_value=40.0, max_value=150.0, value=80.0, step=5.0)
+font_sku_size = st.sidebar.number_input("Tamaño fuente SKU (negrita)", 6, 24, 12)
+font_nombre_size = st.sidebar.number_input("Tamaño fuente nombre", 6, 24, 10)
 
-font_nombre_size = st.sidebar.number_input("Tamaño de fuente para nombre", min_value=6, max_value=24, value=10)
-font_sku_size = st.sidebar.number_input("Tamaño de fuente para SKU (negrita)", min_value=6, max_value=24, value=12)
+# --- FUNCIÓN: DIBUJAR TEXTO CENTRADO ---
+def draw_centered_text(draw, text, y, font, image_width):
+    bbox = font.getbbox(text)
+    text_width = bbox[2] - bbox[0]
+    text_height = bbox[3] - bbox[1]
+    x = (image_width - text_width) / 2
+    draw.text((x, y), text, fill="black", font=font)
+    return text_height
 
-# --- FUNCIÓN AUXILIAR PARA TEXTO CENTRADO Y AJUSTADO ---
-def draw_centered_wrapped_text(draw, text, x_center, y_top, font, max_width):
-    lines = []
-    words = text.split()
-    line = ""
-    for word in words:
-        test_line = f"{line} {word}".strip()
-        bbox = font.getbbox(test_line)
-        w = bbox[2] - bbox[0]
-        if w <= max_width:
-            line = test_line
-        else:
-            lines.append(line)
-            line = word
-    lines.append(line)
-
-    h = 0
-    for line in lines:
-        bbox = font.getbbox(line)
-        h += (bbox[3] - bbox[1]) + 2
-
-    y = y_top
-    for line in lines:
-        bbox = font.getbbox(line)
-        w = bbox[2] - bbox[0]
-        draw.text((x_center - w / 2, y), line, font=font, fill="black")
-        y += (bbox[3] - bbox[1]) + 2
-
-    return h
-
-# --- GENERACIÓN DE PDF ---
-if archivo and logo_file:
+# --- GENERACIÓN DE ETIQUETAS ---
+if archivo is not None:
     df = pd.read_excel(archivo)
+
     st.success(f"{len(df)} artículos cargados correctamente ✅")
+    st.write(df.head())
 
-    buffer_pdf = BytesIO()
-    c = canvas.Canvas(buffer_pdf, pagesize=A4)
-    page_width, page_height = A4
+    # --- PREVISUALIZACIÓN ---
+    st.subheader("🔍 Previsualización de una etiqueta")
 
-    cols = int(page_width // (ancho_etiqueta * mm))
-    rows = int(page_height // (alto_etiqueta * mm))
+    muestra = df.iloc[0]
+    sku = str(muestra["sku"])
+    nombre = str(muestra["nombre"])
+    url = str(muestra["url"])
 
-    x0, y0 = 10 * mm, page_height - alto_etiqueta * mm - 10 * mm
+    logo = Image.open(LOGO_PATH).convert("RGBA")
 
-    logo = Image.open(logo_file).convert("RGBA")
+    # Crear una imagen de etiqueta
+    etiqueta_px = (int(ancho_mm * 8), int(alto_mm * 8))  # Escala 8 px/mm para buena calidad
+    img = Image.new("RGB", etiqueta_px, "white")
+    draw = ImageDraw.Draw(img)
 
-    for i, row in df.iterrows():
-        sku = str(row.get("sku", ""))
-        nombre = str(row.get("nombre", ""))
-        url = str(row.get("url", ""))
-        codigo_barras = str(row.get("codigo_barras", ""))
+    # --- LOGO ---
+    max_logo_w = etiqueta_px[0] * 0.7
+    aspect_ratio = logo.height / logo.width
+    logo_h = int(max_logo_w * aspect_ratio)
+    logo_resized = logo.resize((int(max_logo_w), logo_h))
+    logo_x = (etiqueta_px[0] - logo_resized.width) // 2
+    img.paste(logo_resized, (logo_x, 10), logo_resized)
 
-        col = i % cols
-        fila = (i // cols) % rows
-        x = x0 + col * (ancho_etiqueta * mm)
-        y = y0 - fila * (alto_etiqueta * mm)
+    # --- QR ---
+    qr = qrcode.make(url)
+    qr_size = int(min(etiqueta_px) * 0.35)
+    qr = qr.resize((qr_size, qr_size))
+    qr_x = (etiqueta_px[0] - qr_size) // 2
+    qr_y = int(etiqueta_px[1] / 2.2)
+    img.paste(qr, (qr_x, qr_y))
 
-        # --- LOGO ---
-        max_logo_width = ancho_etiqueta * mm * 0.7
-        aspect_ratio = logo.height / logo.width
-        logo_height = max_logo_width * aspect_ratio
-        logo_resized = logo.resize((int(max_logo_width), int(logo_height)))
-        logo_buf = BytesIO()
-        logo_resized.save(logo_buf, format="PNG")
-        logo_buf.seek(0)
-        logo_img = ImageReader(logo_buf)
-        c.drawImage(
-            logo_img,
-            x + (ancho_etiqueta * mm - max_logo_width) / 2,
-            y + alto_etiqueta * mm - logo_height - 5,
-            width=max_logo_width,
-            height=logo_height,
-            mask="auto",
-        )
+    # --- SKU y Nombre ---
+    try:
+        font_sku = ImageFont.truetype("arialbd.ttf", font_sku_size * 4)
+        font_nombre = ImageFont.truetype("arial.ttf", font_nombre_size * 4)
+    except:
+        font_sku = ImageFont.load_default()
+        font_nombre = ImageFont.load_default()
 
-        # --- CÓDIGO QR ---
-        qr = qrcode.make(url)
-        qr_buf = BytesIO()
-        qr.save(qr_buf, format="PNG")
-        qr_buf.seek(0)
-        qr_img = ImageReader(qr_buf)
+    text_y = qr_y + qr_size + 20
+    text_y += draw_centered_text(draw, sku, text_y, font_sku, etiqueta_px[0]) + 10
+    draw_centered_text(draw, nombre, text_y, font_nombre, etiqueta_px[0])
 
-        qr_size = min(ancho_etiqueta, alto_etiqueta) * 0.35 * mm
-        c.drawImage(
-            qr_img,
-            x + (ancho_etiqueta * mm - qr_size) / 2,
-            y + alto_etiqueta * mm / 2 - qr_size / 2,
-            width=qr_size,
-            height=qr_size,
-        )
+    st.image(img, caption="Vista previa de etiqueta generada")
 
-        # --- TEXTO SKU (EN NEGRITA) Y NOMBRE ---
-        # Crear imagen temporal con texto renderizado
-        label_img = Image.new("RGB", (int(ancho_etiqueta * 4), int(alto_etiqueta * 4)), "white")
-        draw = ImageDraw.Draw(label_img)
+    # --- GENERAR PDF ---
+    if st.button("📄 Generar PDF con todas las etiquetas"):
+        buffer = BytesIO()
+        c = canvas.Canvas(buffer, pagesize=A4)
+        w_page, h_page = A4
 
-        try:
-            font_sku = ImageFont.truetype("arialbd.ttf", font_sku_size * 4)
-            font_nombre = ImageFont.truetype("arial.ttf", font_nombre_size * 4)
-        except:
-            font_sku = ImageFont.load_default()
-            font_nombre = ImageFont.load_default()
+        cols = int(w_page // (ancho_mm * mm))
+        rows = int(h_page // (alto_mm * mm))
+        x0, y0 = 10 * mm, h_page - alto_mm * mm - 10 * mm
 
-        current_y = int(alto_etiqueta * 2.8)  # posición relativa
+        for i, row in df.iterrows():
+            sku = str(row["sku"])
+            nombre = str(row["nombre"])
+            url = str(row["url"])
 
-        # --- SKU (primero, en negrita) ---
-        h_sku = draw_centered_wrapped_text(draw, sku, label_img.width // 2, current_y, font_sku, label_img.width - 10)
+            # Crear etiqueta en memoria
+            etiqueta = Image.new("RGB", etiqueta_px, "white")
+            draw = ImageDraw.Draw(etiqueta)
+            etiqueta.paste(logo_resized, (logo_x, 10), logo_resized)
 
-        # --- Nombre (debajo) ---
-        current_y += h_sku + 10
-        draw_centered_wrapped_text(draw, nombre, label_img.width // 2, current_y, font_nombre, label_img.width - 10)
+            qr = qrcode.make(url)
+            qr = qr.resize((qr_size, qr_size))
+            etiqueta.paste(qr, (qr_x, qr_y))
 
-        text_buf = BytesIO()
-        label_img.save(text_buf, format="PNG")
-        text_buf.seek(0)
-        text_img = ImageReader(text_buf)
+            text_y = qr_y + qr_size + 20
+            text_y += draw_centered_text(draw, sku, text_y, font_sku, etiqueta_px[0]) + 10
+            draw_centered_text(draw, nombre, text_y, font_nombre, etiqueta_px[0])
 
-        c.drawImage(
-            text_img,
-            x,
-            y,
-            width=ancho_etiqueta * mm,
-            height=alto_etiqueta * mm,
-            mask="auto",
-        )
+            etiqueta_buf = BytesIO()
+            etiqueta.save(etiqueta_buf, format="PNG")
+            etiqueta_buf.seek(0)
 
-        # --- CÓDIGO DE BARRAS ---
-        if codigo_barras and codigo_barras.isdigit():
-            tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".png")
-            ean = barcode.get("ean13", codigo_barras, writer=ImageWriter())
-            ean.save(tmp.name[:-4])
-            c.drawImage(
-                tmp.name,
-                x + (ancho_etiqueta * mm - 40 * mm) / 2,
-                y + 5,
-                width=40 * mm,
-                height=15 * mm,
-                mask="auto",
-            )
-            os.unlink(tmp.name)
+            etiqueta_img = ImageReader(etiqueta_buf)
 
-        if (i + 1) % (cols * rows) == 0:
-            c.showPage()
-            x0, y0 = 10 * mm, page_height - alto_etiqueta * mm - 10 * mm
+            col = i % cols
+            fila = (i // cols) % rows
+            x = 10 * mm + col * (ancho_mm * mm)
+            y = h_page - (10 * mm + (fila + 1) * (alto_mm * mm))
 
-    c.save()
-    buffer_pdf.seek(0)
+            c.drawImage(etiqueta_img, x, y, ancho_mm * mm, alto_mm * mm)
 
-    st.download_button("⬇️ Descargar etiquetas en PDF", buffer_pdf, file_name="etiquetas_qr.pdf", mime="application/pdf")
+            if (i + 1) % (cols * rows) == 0:
+                c.showPage()
+
+        c.save()
+        buffer.seek(0)
+        st.download_button("⬇️ Descargar etiquetas en PDF", buffer, "etiquetas_qr.pdf", mime="application/pdf")
 
 else:
-    st.info("Subí el logo y el archivo Excel para generar las etiquetas.")
+    st.info("📂 Cargá tu archivo Excel para comenzar.")
