@@ -167,4 +167,5 @@ if archivo:
         )
 
 st.markdown("---")
-st.caption("Desarrollado por [Tu Empresa] — Generador de etiquetas QR automatizadas")
+st.caption("Desarrollado por NAN — Generador de etiquetas QR automatizadas")
+
