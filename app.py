@@ -110,10 +110,10 @@ if archivo:
             # Logo
             if os.path.exists(logo_path):
                 logo = ImageReader(logo_path)
-                c.drawImage(logo, x + 5, y + 25, width=15*mm, height=15*mm, mask='auto')
+                c.drawImage(logo, x + 5, y + 25, width=25*mm, height=15*mm, mask='auto')
 
             # Dibujar QR
-            c.drawImage(qr_image, x + 25, y + 20, width=35*mm, height=35*mm)
+            c.drawImage(qr_image, x + 25, y + 20, width=30*mm, height=30*mm)
 
             # Crear el texto SKU + Nombre
             texto = f"<b>{sku}</b> {nombre}"
@@ -143,5 +143,6 @@ if archivo:
 
 st.markdown("---")
 st.caption("Desarrollado por [Tu Empresa] — Generador de etiquetas QR automatizadas")
+
 
 
