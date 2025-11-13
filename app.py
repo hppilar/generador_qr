@@ -7,8 +7,14 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import mm
 from reportlab.lib.utils import ImageReader
 from PIL import Image, ImageDraw
-
 import os
+
+styles = getSampleStyleSheet()
+style = styles["Normal"]
+style.fontName = "Helvetica"
+style.fontSize = 7
+style.alignment = TA_LEFT  # alineación a la izquierda
+style.leading = 8  # altura de línea
 
 # ----------------- Configuración de página -----------------
 st.set_page_config(page_title="Generador de Etiquetas QR", layout="centered")
@@ -106,12 +112,11 @@ if archivo:
             # Dibujar QR
             c.drawImage(qr_image, x + 25, y + 20, width=35*mm, height=35*mm)
 
-            # Texto SKU y nombre
-            c.setFillColorRGB(0, 0, 0)
-            c.setFont("Helvetica-Bold", 10)
-            c.drawCentredString(x + espacio_x / 2, y + 12, sku)
-            c.setFont("Helvetica", 9)
-            c.drawCentredString(x + espacio_x / 2, y + 4, nombre[:45])
+            # Crear el texto SKU + Nombre
+            texto = f"<b>{sku}</b> {nombre}"
+            p = Paragraph(texto, style)
+            p.wrapOn(c, espacio_x - 10, espacio_y / 2)  # ancho disponible dentro de la etiqueta
+            p.drawOn(c, x + 5, y + 5)  # posición dentro de la etiqueta
 
             # Siguiente posición
             x_pos += 1
@@ -135,3 +140,4 @@ if archivo:
 
 st.markdown("---")
 st.caption("Desarrollado por [Tu Empresa] — Generador de etiquetas QR automatizadas")
+
