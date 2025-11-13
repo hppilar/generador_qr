@@ -125,7 +125,10 @@ if archivo:
             # Fondo etiqueta
             c.setFillColorRGB(0.96, 0.97, 0.99)
             c.rect(x, y, espacio_x - 5, espacio_y - 5, fill=True, stroke=False)
-
+            
+            # ✅ Convertir BytesIO en objeto compatible
+            qr_image = ImageReader(qr_buffer)
+            
             # Logo en cada etiqueta
             try:
                 logo = ImageReader(logo_path)
@@ -165,3 +168,4 @@ if archivo:
 
 st.markdown("---")
 st.caption("Desarrollado por [Tu Empresa] — Generador de etiquetas QR automatizadas")
+
