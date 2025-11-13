@@ -8,6 +8,9 @@ from reportlab.lib.units import mm
 from reportlab.lib.utils import ImageReader
 from PIL import Image, ImageDraw
 import os
+from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.platypus import Paragraph
+from reportlab.lib.enums import TA_LEFT
 
 styles = getSampleStyleSheet()
 style = styles["Normal"]
@@ -140,4 +143,5 @@ if archivo:
 
 st.markdown("---")
 st.caption("Desarrollado por [Tu Empresa] — Generador de etiquetas QR automatizadas")
+
 
