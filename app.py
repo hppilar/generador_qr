@@ -104,7 +104,7 @@ def generate_barcode_image(code_str, target_width_px):
     try:
         numeric = "".join(ch for ch in code_str if ch.isdigit())
         # preferir EAN13 si tiene entre 8-13 dígitos (rellenar a 12 para librería)
-        if len(numeric) >= 8:
+        if len(numeric) >= 10:
             data = numeric[-12:] if len(numeric) >= 12 else numeric.zfill(12)
             ean = barcode.get("ean13", data, writer=ImageWriter())
             bp = BytesIO()
@@ -275,6 +275,7 @@ else:
 if not BARCODE_AVAILABLE:
     st.info("La librería 'python-barcode' no está instalada: los códigos de barra no se generarán. "
             "Añadila a requirements.txt si querés esa función.")
+
 
 
 
