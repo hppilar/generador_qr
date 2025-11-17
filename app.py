@@ -223,7 +223,7 @@ def build_label_image(sku, nombre, url, codigo_barras, ancho_mm, alto_mm, font_s
         try:
             target_w = int(w_px * 0.85)
             ### CAMBIO 2: Altura constante y llamada a la función modificada ###
-            target_h_px = int(20 * MM_TO_PX) # Altura fija de 15mm convertida a píxeles
+            target_h_px = int(25 * MM_TO_PX) # Altura fija de 15mm convertida a píxeles
             barcode_img = generate_barcode_image(codigo_barras, target_w, target_h_px)
             
             if barcode_img:
@@ -374,4 +374,5 @@ else:
 if not BARCODE_AVAILABLE:
     st.info("La librería 'python-barcode' no está instalada: los códigos de barra no se generarán. "
             "Añadila a requirements.txt si querés esa función.")
+
 
