@@ -51,7 +51,7 @@ archivo = st.file_uploader("Cargar Excel (.xlsx)", type=["xlsx"])
 with st.sidebar:
     st.header("Configuración de la etiqueta (mm)")
     ancho_mm = st.number_input("Ancho (mm)", min_value=30, max_value=150, value=60, step=1)
-    alto_mm = st.number_input("Alto (mm)", min_value=30, max_value=150, value=100, step=1)
+    alto_mm = st.number_input("Alto (mm)", min_value=30, max_value=150, value=90, step=1)
     margen_mm = st.number_input("Margen página (mm)", min_value=5, max_value=25, value=10, step=1)
     
     st.header("Tamaños de fuente (pt)")
@@ -374,6 +374,7 @@ else:
 if not BARCODE_AVAILABLE:
     st.info("La librería 'python-barcode' no está instalada: los códigos de barra no se generarán. "
             "Añadila a requirements.txt si querés esa función.")
+
 
 
 
