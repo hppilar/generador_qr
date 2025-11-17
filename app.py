@@ -118,36 +118,32 @@ def draw_centered_wrapped(draw, text, x_center, y_top, font, max_width):
         total_h += h_px + 2
     return total_h
 
+### CAMBIO 1: Lógica de generación de código de barras ###
 # generar imagen de barcode usando python-barcode (si disponible)
-def generate_barcode_image(code_str, target_width_px):
-    if not BARCODE_AVAILABLE or not code_str or not any(ch.isdigit() for ch in code_str):
+def generate_barcode_image(code_str, target_width_px, target_height_px):
+    """
+    Genera una imagen de código de barras Code128 con dimensiones fijas.
+    Code128 se utiliza universalmente porque soporta códigos numéricos y alfanuméricos
+    sin necesidad de padding o modificación, evitando problemas de escaneo.
+    """
+    if not BARCODE_AVAILABLE or not code_str:
         return None
     
     try:
-        numeric = "".join(ch for ch in code_str if ch.isdigit())
-        # preferir EAN13 si tiene entre 8-13 dígitos (rellenar a 12 para librería)
-        if len(numeric) >= 10:
-            data = numeric[-12:] if len(numeric) >= 12 else numeric.zfill(12)
-            ean = barcode.get("ean13", data, writer=ImageWriter())
-            bp = BytesIO()
-            ean.write(bp, {"module_height": 10.0, "font_size": 7, "text_distance": 3.0})
-            bp.seek(0)
-            img = Image.open(bp).convert("RGB")
-        else:
-            # fallback a code128 (acepta cualquier)
-            code128 = barcode.get("code128", code_str, writer=ImageWriter())
-            bp = BytesIO()
-            code128.write(bp, {"module_height": 10.0, "font_size": 7, "text_distance": 3.0})
-            bp.seek(0)
-            img = Image.open(bp).convert("RGB")
-        # redimensionar manteniendo razón hasta target_width_px
-        ratio = img.height / img.width if img.width else 1
-        new_w = int(target_width_px)
-        new_h = max(10, int(new_w * ratio))
-        img = img.resize((new_w, new_h), Image.LANCZOS)
+        # Siempre usar Code128, ya que maneja tanto alfanuméricos como numéricos sin padding.
+        # Esto resuelve el problema de los códigos que no se encuentran al escanearse.
+        code128 = barcode.get('code128', code_str, writer=ImageWriter())
+        bp = BytesIO()
+        # Generar el código de barras con opciones por defecto
+        code128.write(bp, options={'module_height': 8.0, 'font_size': 6, 'text_distance': 2.0})
+        bp.seek(0)
+        img = Image.open(bp).convert('RGB')
+
+        # Redimensionar a las dimensiones exactas requeridas (ancho y alto constantes)
+        img = img.resize((target_width_px, target_height_px), Image.LANCZOS)
         return img
     except Exception as e:
-        logger.warning(f"No se pudo generar barcode: {e}")
+        logger.warning(f"No se pudo generar barcode para '{code_str}': {e}")
         return None
 
 # genera la etiqueta como PIL.Image (usada para preview y para exportar)
@@ -226,7 +222,10 @@ def build_label_image(sku, nombre, url, codigo_barras, ancho_mm, alto_mm, font_s
     if mostrar_codigo_barras and codigo_barras and BARCODE_AVAILABLE:
         try:
             target_w = int(w_px * 0.85)
-            barcode_img = generate_barcode_image(codigo_barras, target_w)
+            ### CAMBIO 2: Altura constante y llamada a la función modificada ###
+            target_h_px = int(15 * MM_TO_PX) # Altura fija de 15mm convertida a píxeles
+            barcode_img = generate_barcode_image(codigo_barras, target_w, target_h_px)
+            
             if barcode_img:
                 # pegar en bottom con un pequeño margen
                 b_w, b_h = barcode_img.size
@@ -326,11 +325,12 @@ else:
         if urls_vacias > 0:
             st.warning(f"Se encontraron {urls_vacias} URLs vacías. Estas etiquetas no tendrán código QR.")
         
-        # Verificar códigos de barras inválidos
+        # Verificar códigos de barras vacíos
         if 'codigo_barras' in df.columns:
-            barras_invalidos = df['codigo_barras'].apply(lambda x: not any(ch.isdigit() for ch in str(x)) if pd.notna(x) else False).sum()
-            if barras_invalidos > 0:
-                st.warning(f"Se encontraron {barras_invalidos} códigos de barras inválidos (sin dígitos).")
+            barras_vacios = df['codigo_barras'].isna().sum()
+            if barras_vacios > 0:
+                st.warning(f"Se encontraron {barras_vacios} códigos de barras vacíos.")
+
 
     # Previsualización de la primera fila
     st.subheader("Previsualización (fila 1)")
