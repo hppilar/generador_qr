@@ -51,12 +51,12 @@ archivo = st.file_uploader("Cargar Excel (.xlsx)", type=["xlsx"])
 with st.sidebar:
     st.header("Configuración de la etiqueta (mm)")
     ancho_mm = st.number_input("Ancho (mm)", min_value=30, max_value=150, value=60, step=1)
-    alto_mm = st.number_input("Alto (mm)", min_value=30, max_value=150, value=80, step=1)
+    alto_mm = st.number_input("Alto (mm)", min_value=30, max_value=150, value=100, step=1)
     margen_mm = st.number_input("Margen página (mm)", min_value=5, max_value=25, value=10, step=1)
     
     st.header("Tamaños de fuente (pt)")
-    font_sku_pt = st.number_input("SKU (negrita)", min_value=6, max_value=36, value=12)
-    font_nombre_pt = st.number_input("Nombre", min_value=6, max_value=36, value=10)
+    font_sku_pt = st.number_input("SKU (negrita)", min_value=6, max_value=36, value=14)
+    font_nombre_pt = st.number_input("Nombre", min_value=6, max_value=36, value=8)
     
     st.header("Opciones adicionales")
     mostrar_codigo_qr = st.checkbox("Mostrar código QR", value=True)
@@ -374,6 +374,7 @@ else:
 if not BARCODE_AVAILABLE:
     st.info("La librería 'python-barcode' no está instalada: los códigos de barra no se generarán. "
             "Añadila a requirements.txt si querés esa función.")
+
 
 
 
