@@ -479,7 +479,6 @@ if modo == "Masivo (Excel)":
                     except Exception as e:
                         st.error(f"Error al generar PDF: {e}")
                         logger.error(f"Error al generar PDF: {e}")
-
 # Modo Individual (Búsqueda)
 else:
     st.markdown("""
@@ -487,7 +486,7 @@ else:
     Podés buscar por **SKU**, **Nombre**, **Código de Barras** o **Rubro**.
     """)
     
-    # Primero, necesitamos cargar los datos desde un archivo Excel
+    # Cargar la base de datos
     archivo_base = st.file_uploader("Cargar base de datos (.xlsx)", type=["xlsx"], key="base_datos")
     
     if archivo_base is None:
@@ -496,183 +495,175 @@ else:
         df = load_data_from_excel_individual(archivo_base)
         
         if df is not None:
-            ### CORRECCIÓN: Validación de columnas mínimas para el modo individual ###
-            # comprobar columnas mínimas (solo SKU y Nombre son obligatorios aquí)
             if not all(col in df.columns for col in ["sku","nombre"]):
                 st.error("El Excel de la base de datos debe contener al menos las columnas: SKU, Nombre")
                 st.stop()
             
             st.success(f"Base de datos cargada: {len(df)} artículos")
 
-            # Sección de búsqueda
-            st.subheader("Búsqueda de artículos")
-            
-            # Columnas para los campos de búsqueda
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                # Búsqueda por SKU
-                sku_busqueda = st.text_input("Buscar por SKU", key="sku_search")
-                
-                # Búsqueda por Código de Barras
-                codigo_busqueda = st.text_input("Buscar por Código de Barras", key="codigo_search")
-                
-            with col2:
-                # Búsqueda por Nombre
-                nombre_busqueda = st.text_input("Buscar por Nombre", key="nombre_search")
-                
-                # Búsqueda por Rubro (si existe la columna)
-                if "rubro" in df.columns:
-                    rubros = df["rubro"].dropna().unique().tolist()
-                    rubro_seleccionado = st.selectbox("Buscar por Rubro", [""] + rubros, key="rubro_search")
-                else:
+            # --- Sección de Búsqueda ---
+            with st.expander("🔍 Búsqueda Avanzada", expanded=True):
+                col1, col2 = st.columns(2)
+                with col1:
+                    sku_busqueda = st.text_input("Buscar por SKU")
+                    codigo_busqueda = st.text_input("Buscar por Código de Barras")
+                with col2:
+                    nombre_busqueda = st.text_input("Buscar por Nombre")
+                    # Búsqueda por Rubro (si existe la columna)
+                    rubro_col_name = next((col for col in df.columns if 'rubro' in col.lower()), None)
                     rubro_seleccionado = ""
-            
+                    if rubro_col_name:
+                        rubros = [""] + sorted(df[rubro_col_name].dropna().unique().tolist())
+                        rubro_seleccionado = st.selectbox("Buscar por Rubro", rubros)
+
             # Botón de búsqueda
-            if st.button("Buscar"):
-                # Filtrar según los criterios
+            if st.button("Buscar Artículos", type="primary"):
                 resultados = df.copy()
-                
                 if sku_busqueda:
                     resultados = resultados[resultados["sku"].astype(str).str.contains(sku_busqueda, case=False, na=False)]
-                
                 if codigo_busqueda and "codigo_barras" in resultados.columns:
                     resultados = resultados[resultados["codigo_barras"].astype(str).str.contains(codigo_busqueda, case=False, na=False)]
-                
                 if nombre_busqueda:
                     resultados = resultados[resultados["nombre"].astype(str).str.contains(nombre_busqueda, case=False, na=False)]
-                
                 if rubro_seleccionado:
-                    resultados = resultados[resultados["rubro"] == rubro_seleccionado]
+                    resultados = resultados[resultados[rubro_col_name] == rubro_seleccionado]
                 
-                # Guardar resultados en el estado de sesión
                 st.session_state.search_results = resultados.reset_index(drop=True)
-            
-            # Mostrar resultados de búsqueda
-            if "search_results" in st.session_state and len(st.session_state.search_results) > 0:
-                st.subheader(f"Resultados de búsqueda ({len(st.session_state.search_results)})")
+                st.session_state.current_page = 1
+                st.rerun() # Forzar actualización para mostrar resultados
+
+            # --- Mostrar Resultados de la Búsqueda ---
+            if "search_results" in st.session_state and not st.session_state.search_results.empty:
+                st.subheader(f"Resultados de la búsqueda ({len(st.session_state.search_results)} artículos)")
                 
-                # Mostrar resultados en un formato más visual
-                for i, row in st.session_state.search_results.iterrows():
-                    col_img, col_info, col_btn = st.columns([1, 3, 1])
-                    
-                    with col_img:
-                        # Mostrar imagen si existe la columna imagen_url y la celda no está vacía
-                        if "imagen_url" in row and pd.notna(row["imagen_url"]):
-                            mostrar_imagen_con_zoom(row["imagen_url"], width=100)
-                        else:
-                            st.info("Sin imagen")
-                    
-                    with col_info:
-                        sku = str(row.get("sku", ""))
-                        nombre = str(row.get("nombre", ""))
-                        codigo_barras = str(row.get("codigo_barras", "")) if "codigo_barras" in row else ""
-                        rubro = str(row.get("rubro", "")) if "rubro" in row else ""
-                        
-                        st.write(f"**SKU:** {sku}")
-                        st.write(f"**Nombre:** {nombre}")
-                        if codigo_barras:
-                            st.write(f"**Código de Barras:** {codigo_barras}")
-                        if rubro:
-                            st.write(f"**Rubro:** {rubro}")
-                    
-                    with col_btn:
-                        # Botón para agregar a la lista de selección
-                        if st.button("Agregar", key=f"add_{i}"):
-                            # Verificar si ya está en la lista
-                            if sku not in [item["sku"] for item in st.session_state.selected_items]:
+                # Paginación
+                resultados_df = st.session_state.search_results
+                page_size = 10
+                total_pages = (len(resultados_df) // page_size) + (1 if len(resultados_df) % page_size > 0 else 0)
+                
+                col_page_info, col_page_selector = st.columns([1, 1])
+                with col_page_info:
+                    st.write(f"Página {st.session_state.get('current_page', 1)} de {total_pages}")
+                with col_page_selector:
+                    page_num = st.number_input(
+                        "Ir a la página", 
+                        min_value=1, 
+                        max_value=total_pages, 
+                        value=st.session_state.get('current_page', 1),
+                        step=1
+                    )
+                    st.session_state.current_page = int(page_num)
+
+                # Calcular el rango de datos para la página actual
+                start_idx = (st.session_state.current_page - 1) * page_size
+                end_idx = start_idx + page_size
+                paginated_df = resultados_df.iloc[start_idx:end_idx].copy()
+
+                # Preparar el DataFrame para la visualización
+                # Añadir una columna para la selección (checkbox)
+                paginated_df['Seleccionar'] = False
+                
+                # Configuración de las columnas del DataFrame
+                column_config = {
+                    "Seleccionar": st.column_config.CheckboxColumn("Agregar", help="Selecciona para agregar a la lista de etiquetas"),
+                    "sku": st.column_config.TextColumn("SKU", width="small"),
+                    "nombre": st.column_config.TextColumn("Nombre", width="large"),
+                    "codigo_barras": st.column_config.TextColumn("Código de Barras", width="medium"),
+                    "rubro": st.column_config.TextColumn("Rubro", width="medium"),
+                }
+
+                # Añadir la columna de imagen si existe
+                if "imagen_url" in paginated_df.columns:
+                    column_config["imagen_url"] = st.column_config.ImageColumn(
+                        "Imagen",
+                        help="Miniatura del producto. Haz clic para ampliar.",
+                        width="small"
+                    )
+                    # Reordenar columnas para que la imagen esté al principio
+                    cols = ['Seleccionar', 'imagen_url'] + [col for col in paginated_df.columns if col not in ['Seleccionar', 'imagen_url']]
+                    paginated_df = paginated_df[cols]
+                else:
+                    cols = ['Seleccionar'] + [col for col in paginated_df.columns if col != 'Seleccionar']
+                    paginated_df = paginated_df[cols]
+
+
+                # Mostrar el DataFrame editable (solo para los checkboxes)
+                edited_df = st.data_editor(
+                    paginated_df,
+                    column_config=column_config,
+                    hide_index=True,
+                    use_container_width=True,
+                    num_rows="dynamic"
+                )
+
+                # Botón para agregar los seleccionados
+                if st.button("Agregar artículos seleccionados a la lista", type="secondary"):
+                    selected_rows = edited_df[edited_df['Seleccionar'] == True]
+                    if not selected_rows.empty:
+                        for index, row in selected_rows.iterrows():
+                            sku = str(row.get("sku", ""))
+                            if sku and sku not in [item["sku"] for item in st.session_state.selected_items]:
                                 st.session_state.selected_items.append({
                                     "sku": sku,
-                                    "nombre": nombre,
-                                    # El campo 'url' para el QR quedará vacío, ya que no existe en este archivo
-                                    "url": "", 
-                                    "codigo_barras": codigo_barras,
-                                    "imagen_url": str(row["imagen_url"]) if "imagen_url" in row and pd.notna(row["imagen_url"]) else "",
-                                    "rubro": rubro
+                                    "nombre": str(row.get("nombre", "")),
+                                    "url": "", # Sin URL para QR en este modo
+                                    "codigo_barras": str(row.get("codigo_barras", "")) if pd.notna(row.get("codigo_barras")) else "",
+                                    "imagen_url": str(row.get("imagen_url", "")) if pd.notna(row.get("imagen_url")) else "",
+                                    "rubro": str(row.get(rubro_col_name, "")) if rubro_col_name else ""
                                 })
-                                st.success(f"Artículo {sku} agregado a la lista")
-                            else:
-                                st.warning(f"El artículo {sku} ya está en la lista")
-            
-            # Mostrar lista de artículos seleccionados
-            if len(st.session_state.selected_items) > 0:
-                st.subheader(f"Artículos seleccionados ({len(st.session_state.selected_items)})")
-                
-                # Crear un DataFrame con los artículos seleccionados
-                df_selected = pd.DataFrame(st.session_state.selected_items)
-                
-                # Mostrar tabla con los artículos seleccionados
-                for i, item in enumerate(st.session_state.selected_items):
-                    col_img, col_info, col_btn = st.columns([1, 3, 1])
-                    
-                    with col_img:
-                        # Mostrar imagen si existe
-                        if item["imagen_url"]:
-                            mostrar_imagen_con_zoom(item["imagen_url"], width=100)
-                        else:
-                            st.info("Sin imagen")
-                    
-                    with col_info:
-                        st.write(f"**SKU:** {item['sku']}")
-                        st.write(f"**Nombre:** {item['nombre']}")
-                        if item["codigo_barras"]:
-                            st.write(f"**Código de Barras:** {item['codigo_barras']}")
-                        if item["rubro"]:
-                            st.write(f"**Rubro:** {item['rubro']}")
-                    
-                    with col_btn:
-                        # Botón para eliminar de la lista
-                        if st.button("Eliminar", key=f"remove_{i}"):
-                            st.session_state.selected_items.pop(i)
-                
-                # Previsualización de la primera etiqueta seleccionada
-                st.subheader("Previsualización de etiqueta")
-                first_selected = st.session_state.selected_items[0]
-                
-                img_preview = build_label_image(
-                    first_selected["sku"], 
-                    first_selected["nombre"], 
-                    first_selected["url"],  # Este será un string vacío
-                    first_selected["codigo_barras"], 
-                    ancho_mm, alto_mm, font_sku_pt, font_nombre_pt, LOGO_PATH,
-                    mostrar_codigo_qr, mostrar_codigo_barras, mostrar_logo, qr_error_correction
-                )
-                st.image(img_preview, width=min(400, img_preview.width))
-                
-                # Botón para generar PDF
-                if st.button("Generar PDF con artículos seleccionados"):
-                    # Validaciones: asegurar que al menos 1 etiqueta cabe en A4
-                    cols = int((210 - 2*margen_mm)//ancho_mm)
-                    rows = int((297 - 2*margen_mm)//alto_mm)
-                    if cols < 1 or rows < 1:
-                        st.error("Con ese tamaño y margen no cabe ninguna etiqueta en A4. Ajustá medidas.")
+                        st.success(f"Se agregaron {len(selected_rows)} artículos a la lista.")
+                        # Limpiar la selección después de agregar
+                        edited_df['Seleccionar'] = False
                     else:
-                        # Barra de progreso
-                        progress_bar = st.progress(0)
-                        status_text = st.empty()
-                        
-                        start_time = time.time()
-                        
-                        try:
-                            buffer = generar_etiquetas_paralelo(
-                                df_selected, cols, rows, ancho_mm, alto_mm, font_sku_pt, font_nombre_pt, LOGO_PATH,
-                                mostrar_codigo_qr, mostrar_codigo_barras, mostrar_logo, qr_error_correction
-                            )
-                            
-                            elapsed_time = time.time() - start_time
-                            status_text.text(f"PDF generado en {elapsed_time:.2f} segundos")
-                            progress_bar.progress(100)
-                            
-                            st.success("PDF generado ✅")
-                            st.download_button("Descargar etiquetas (PDF)", buffer, file_name="etiquetas_qr.pdf", mime="application/pdf")
-                        except Exception as e:
-                            st.error(f"Error al generar PDF: {e}")
-                            logger.error(f"Error al generar PDF: {e}")
+                        st.warning("No se seleccionó ningún artículo.")
+
+            # --- Mostrar lista de artículos seleccionados para generar etiquetas ---
+            if len(st.session_state.selected_items) > 0:
+                st.subheader(f"📋 Lista de Etiquetas a Generar ({len(st.session_state.selected_items)})")
+                
+                df_selected = pd.DataFrame(st.session_state.selected_items)
+                st.dataframe(df_selected[['sku', 'nombre', 'codigo_barras', 'rubro']], use_container_width=True)
+
+                # Previsualización de la primera etiqueta
+                with st.expander("Previsualización de la primera etiqueta", expanded=True):
+                    first_selected = st.session_state.selected_items[0]
+                    img_preview = build_label_image(
+                        first_selected["sku"], first_selected["nombre"], first_selected["url"], 
+                        first_selected["codigo_barras"], ancho_mm, alto_mm, font_sku_pt, font_nombre_pt, 
+                        LOGO_PATH, mostrar_codigo_qr, mostrar_codigo_barras, mostrar_logo, qr_error_correction
+                    )
+                    st.image(img_preview, width=300)
+
+                # Botón para generar PDF y limpiar lista
+                col_gen, col_clear = st.columns(2)
+                with col_gen:
+                    if st.button("🖨️ Generar PDF con artículos seleccionados", type="primary"):
+                        cols_pdf = int((210 - 2*margen_mm)//ancho_mm)
+                        rows_pdf = int((297 - 2*margen_mm)//alto_mm)
+                        if cols_pdf < 1 or rows_pdf < 1:
+                            st.error("Con ese tamaño y margen no cabe ninguna etiqueta en A4. Ajustá medidas.")
+                        else:
+                            with st.spinner("Generando PDF..."):
+                                try:
+                                    buffer = generar_etiquetas_paralelo(
+                                        df_selected, cols_pdf, rows_pdf, ancho_mm, alto_mm, 
+                                        font_sku_pt, font_nombre_pt, LOGO_PATH, mostrar_codigo_qr, 
+                                        mostrar_codigo_barras, mostrar_logo, qr_error_correction
+                                    )
+                                    st.success("PDF generado ✅")
+                                    st.download_button("Descargar etiquetas (PDF)", buffer, file_name="etiquetas_qr.pdf", mime="application/pdf")
+                                except Exception as e:
+                                    st.error(f"Error al generar PDF: {e}")
+                with col_clear:
+                    if st.button("🗑️ Limpiar lista de selección"):
+                        st.session_state.selected_items = []
+                        st.rerun()
             else:
-                st.info("No hay artículos seleccionados. Realizá una búsqueda y agregá artículos a la lista.")
+                st.info("No hay artículos en la lista. Realizá una búsqueda y agregá artículos para comenzar.")
 
 # Informar sobre dependencias
 if not BARCODE_AVAILABLE:
     st.info("La librería 'python-barcode' no está instalada: los códigos de barra no se generarán. "
             "Añadila a requirements.txt si querés esa función.")
+
 
