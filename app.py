@@ -496,9 +496,10 @@ else:
         df = load_data_from_excel_individual(archivo_base)
         
         if df is not None:
-            # comprobar columnas mínimas
-            if not all(col in df.columns for col in ["sku","nombre","url"]):
-                st.error("El Excel debe contener al menos las columnas: SKU, Nombre, URL WEB")
+            ### CORRECCIÓN: Validación de columnas mínimas para el modo individual ###
+            # comprobar columnas mínimas (solo SKU y Nombre son obligatorios aquí)
+            if not all(col in df.columns for col in ["sku","nombre"]):
+                st.error("El Excel de la base de datos debe contener al menos las columnas: SKU, Nombre")
                 st.stop()
             
             st.success(f"Base de datos cargada: {len(df)} artículos")
@@ -583,7 +584,8 @@ else:
                                 st.session_state.selected_items.append({
                                     "sku": sku,
                                     "nombre": nombre,
-                                    "url": str(row.get("url", "")),
+                                    # El campo 'url' para el QR quedará vacío, ya que no existe en este archivo
+                                    "url": "", 
                                     "codigo_barras": codigo_barras,
                                     "imagen_url": str(row["imagen_url"]) if "imagen_url" in row and pd.notna(row["imagen_url"]) else "",
                                     "rubro": rubro
@@ -630,7 +632,7 @@ else:
                 img_preview = build_label_image(
                     first_selected["sku"], 
                     first_selected["nombre"], 
-                    first_selected["url"], 
+                    first_selected["url"],  # Este será un string vacío
                     first_selected["codigo_barras"], 
                     ancho_mm, alto_mm, font_sku_pt, font_nombre_pt, LOGO_PATH,
                     mostrar_codigo_qr, mostrar_codigo_barras, mostrar_logo, qr_error_correction
@@ -673,3 +675,4 @@ else:
 if not BARCODE_AVAILABLE:
     st.info("La librería 'python-barcode' no está instalada: los códigos de barra no se generarán. "
             "Añadila a requirements.txt si querés esa función.")
+
