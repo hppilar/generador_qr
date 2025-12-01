@@ -128,7 +128,7 @@ def generate_barcode_image(code_str, target_width_px, target_height_px):
         code128 = barcode.get('code128', code_str, writer=ImageWriter())
         bp = BytesIO()
         # Generar el código de barras con opciones por defecto
-        code128.write(bp, options={'module_height': 8.0, 'font_size': 6, 'text_distance': 2.0})
+        code128.write(bp, options={'module_height': 8.0, 'font_size': 6, 'text_distance': 2.5})
         bp.seek(0)
         img = Image.open(bp).convert('RGB')
 
@@ -665,5 +665,6 @@ else:
 if not BARCODE_AVAILABLE:
     st.info("La librería 'python-barcode' no está instalada: los códigos de barra no se generarán. "
             "Añadila a requirements.txt si querés esa función.")
+
 
 
