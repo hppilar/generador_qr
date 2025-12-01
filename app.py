@@ -241,7 +241,6 @@ def generar_etiquetas_paralelo(df, cols, rows, ancho_mm, alto_mm, font_sku_pt, f
         nombre = str(row.get("nombre",""))
         url = str(row.get("url",""))
         codigo_barras = str(row.get("codigo_barras","")) if "codigo_barras" in df.columns else ""
-        imagen_url = str(row.get("imagen_url","")) if "imagen_url" in df.columns else ""
         
         img_label = build_label_image(sku, nombre, url, codigo_barras, ancho_mm, alto_mm, font_sku_pt, font_nombre_pt, logo_path, mostrar_codigo_qr, mostrar_codigo_barras, mostrar_logo, qr_error_correction)
         buf_img = BytesIO()
@@ -333,15 +332,49 @@ if 'show_zoom' not in st.session_state:
 if 'zoom_image_url' not in st.session_state:
     st.session_state.zoom_image_url = None
 
-# Cargar datos desde Excel (para el modo individual)
+# Cargar datos desde Excel (para el modo masivo)
 @st.cache_data
-def load_data_from_excel(archivo):
+def load_data_from_excel_batch(archivo):
     try:
         df = pd.read_excel(archivo)
-        # normalizar nombres de columna a minúsculas para tolerancia
-        df.columns = [c.strip() for c in df.columns]
-        lower_map = {c: c.lower() for c in df.columns}
-        df.rename(columns=lower_map, inplace=True)
+        # Mapear columnas a nombres estándar
+        column_mapping = {
+            'SKU': 'sku',
+            'Articulo': 'nombre',
+            'URL WEB': 'url',
+            'Codigo barras': 'codigo_barras'
+        }
+        
+        # Renombrar solo las columnas que existen en el mapeo
+        for old_name, new_name in column_mapping.items():
+            if old_name in df.columns:
+                df.rename(columns={old_name: new_name}, inplace=True)
+        
+        return df
+    except Exception as e:
+        st.error(f"Error leyendo Excel: {e}")
+        logger.error(f"Error leyendo Excel: {e}")
+        return None
+
+# Cargar datos desde Excel (para el modo individual)
+@st.cache_data
+def load_data_from_excel_individual(archivo):
+    try:
+        df = pd.read_excel(archivo)
+        # Mapear columnas a nombres estándar
+        column_mapping = {
+            'SKU': 'sku',
+            'Nombre': 'nombre',
+            'Codigo Barras': 'codigo_barras',
+            'Rubro': 'rubro',
+            'URL foto': 'imagen_url'
+        }
+        
+        # Renombrar solo las columnas que existen en el mapeo
+        for old_name, new_name in column_mapping.items():
+            if old_name in df.columns:
+                df.rename(columns={old_name: new_name}, inplace=True)
+        
         return df
     except Exception as e:
         st.error(f"Error leyendo Excel: {e}")
@@ -386,9 +419,9 @@ mostrar_dialogo_zoom()
 # Modo Masivo (Excel)
 if modo == "Masivo (Excel)":
     st.markdown("""
-    Subí un Excel con columnas: **sku**, **nombre**, **url**, **codigo_barras** (opcional), **imagen_url** (opcional).
+    Subí un Excel con columnas: **SKU**, **Articulo**, **URL WEB**, **Codigo barras**.
     - SKU se dibuja *primero* (en negrita).
-    - Luego Nombre.
+    - Luego Articulo.
     - Código de barras (si hay número válido) en la parte inferior.
     """)
 
@@ -399,31 +432,15 @@ if modo == "Masivo (Excel)":
     if archivo is None:
         st.info("Cargá tu archivo Excel para comenzar.")
     else:
-        df = load_data_from_excel(archivo)
+        df = load_data_from_excel_batch(archivo)
         
         if df is not None:
             # comprobar columnas mínimas
             if not all(col in df.columns for col in ["sku","nombre","url"]):
-                st.error("El Excel debe contener al menos las columnas: sku, nombre, url")
+                st.error("El Excel debe contener al menos las columnas: SKU, Articulo, URL WEB")
                 st.stop()
 
             st.success(f"{len(df)} filas leídas")
-
-            # Validación de datos
-            st.subheader("Validación de datos")
-            with st.expander("Verificar datos"):
-                st.dataframe(df.head(10))
-                
-                # Verificar URLs vacías
-                urls_vacias = df['url'].isna().sum()
-                if urls_vacias > 0:
-                    st.warning(f"Se encontraron {urls_vacias} URLs vacías. Estas etiquetas no tendrán código QR.")
-                
-                # Verificar códigos de barras vacíos
-                if 'codigo_barras' in df.columns:
-                    barras_vacios = df['codigo_barras'].isna().sum()
-                    if barras_vacios > 0:
-                        st.warning(f"Se encontraron {barras_vacios} códigos de barras vacíos.")
 
             # Previsualización de la primera fila
             st.subheader("Previsualización (fila 1)")
@@ -476,16 +493,16 @@ else:
     if archivo_base is None:
         st.info("Cargá tu archivo Excel con la base de datos para comenzar.")
     else:
-        df = load_data_from_excel(archivo_base)
+        df = load_data_from_excel_individual(archivo_base)
         
         if df is not None:
             # comprobar columnas mínimas
             if not all(col in df.columns for col in ["sku","nombre","url"]):
-                st.error("El Excel debe contener al menos las columnas: sku, nombre, url")
+                st.error("El Excel debe contener al menos las columnas: SKU, Nombre, URL WEB")
                 st.stop()
             
             st.success(f"Base de datos cargada: {len(df)} artículos")
-            
+
             # Sección de búsqueda
             st.subheader("Búsqueda de artículos")
             
@@ -509,7 +526,6 @@ else:
                     rubro_seleccionado = st.selectbox("Buscar por Rubro", [""] + rubros, key="rubro_search")
                 else:
                     rubro_seleccionado = ""
-                    st.info("No se encontró la columna 'rubro' en la base de datos")
             
             # Botón de búsqueda
             if st.button("Buscar"):
@@ -517,14 +533,13 @@ else:
                 resultados = df.copy()
                 
                 if sku_busqueda:
-                    resultados = resultados[resultados["sku"].str.contains(sku_busqueda, case=False, na=False)]
+                    resultados = resultados[resultados["sku"].astype(str).str.contains(sku_busqueda, case=False, na=False)]
                 
-                if codigo_busqueda:
-                    if "codigo_barras" in resultados.columns:
-                        resultados = resultados[resultados["codigo_barras"].str.contains(codigo_busqueda, case=False, na=False)]
+                if codigo_busqueda and "codigo_barras" in resultados.columns:
+                    resultados = resultados[resultados["codigo_barras"].astype(str).str.contains(codigo_busqueda, case=False, na=False)]
                 
                 if nombre_busqueda:
-                    resultados = resultados[resultados["nombre"].str.contains(nombre_busqueda, case=False, na=False)]
+                    resultados = resultados[resultados["nombre"].astype(str).str.contains(nombre_busqueda, case=False, na=False)]
                 
                 if rubro_seleccionado:
                     resultados = resultados[resultados["rubro"] == rubro_seleccionado]
@@ -541,7 +556,7 @@ else:
                     col_img, col_info, col_btn = st.columns([1, 3, 1])
                     
                     with col_img:
-                        # Mostrar imagen si existe la columna imagen_url
+                        # Mostrar imagen si existe la columna imagen_url y la celda no está vacía
                         if "imagen_url" in row and pd.notna(row["imagen_url"]):
                             mostrar_imagen_con_zoom(row["imagen_url"], width=100)
                         else:
@@ -570,11 +585,10 @@ else:
                                     "nombre": nombre,
                                     "url": str(row.get("url", "")),
                                     "codigo_barras": codigo_barras,
-                                    "imagen_url": str(row.get("imagen_url", "")) if "imagen_url" in row else "",
+                                    "imagen_url": str(row["imagen_url"]) if "imagen_url" in row and pd.notna(row["imagen_url"]) else "",
                                     "rubro": rubro
                                 })
                                 st.success(f"Artículo {sku} agregado a la lista")
-                                st.experimental_rerun()
                             else:
                                 st.warning(f"El artículo {sku} ya está en la lista")
             
@@ -608,7 +622,6 @@ else:
                         # Botón para eliminar de la lista
                         if st.button("Eliminar", key=f"remove_{i}"):
                             st.session_state.selected_items.pop(i)
-                            st.experimental_rerun()
                 
                 # Previsualización de la primera etiqueta seleccionada
                 st.subheader("Previsualización de etiqueta")
